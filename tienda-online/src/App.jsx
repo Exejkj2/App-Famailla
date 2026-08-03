@@ -7,6 +7,7 @@ import OffersGrid from './components/OffersGrid';
 import FeaturedProducts from './components/FeaturedProducts';
 import Promotions from './components/Promotions';
 import OffersPage from './components/OffersPage';
+import SobreNosotros from './components/SobreNosotros';
 import CartDrawer from './components/CartDrawer';
 import Toast from './components/Toast';
 import Footer from './components/Footer';
@@ -150,6 +151,17 @@ export default function App() {
             ) : (
               <OffersPage products={products} onAdd={addToCart} />
             )}
+          </main>
+          <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
+          <Toast toast={toast} onClose={() => setToast(null)} />
+        </>
+      )}
+
+      {currentView === 'about' && (
+        <>
+          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('login')} onNavigate={navigate} />
+          <main>
+            <SobreNosotros />
           </main>
           <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
           <Toast toast={toast} onClose={() => setToast(null)} />
