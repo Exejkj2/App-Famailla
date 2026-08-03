@@ -15,6 +15,8 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -71,7 +73,9 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
       const { error } = await supabaseClient.from('products').update(dbPayload).eq('id', editingProduct.id);
       if (error) alert('Error al actualizar: ' + error.message);
       else {
-        alert('Producto actualizado exitosamente');
+        setModalMessage('Producto actualizado exitosamente');
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 3000);
         fetchProducts();
         closeModal();
       }
@@ -79,7 +83,9 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
       const { error } = await supabaseClient.from('products').insert([dbPayload]);
       if (error) alert('Error al guardar: ' + error.message);
       else {
-        alert('Producto agregado exitosamente');
+        setModalMessage('Producto agregado exitosamente');
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 3000);
         fetchProducts();
         closeModal();
       }
@@ -99,6 +105,120 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
       if (error) alert('Error al eliminar: ' + error.message);
       else fetchProducts();
     }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      const { data, error } = await supabaseClient.from('products').select('*');
+      if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        alert("No hay productos guardados para exportar.");
+        return;
+      }
+
+      const headers = ['id', 'name', 'price', 'old_price', 'stock', 'category', 'image_url', 'is_offer'];
+      const csvRows = [];
+      csvRows.push(headers.join(','));
+
+      for (const product of data) {
+        const row = headers.map(header => {
+          let value = product[header] !== null && product[header] !== undefined ? product[header] : '';
+          value = String(value).replace(/"/g, '""');
+          return `"${value}"`;
+        });
+        csvRows.push(row.join(','));
+      }
+
+      const csvString = csvRows.join('\n');
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      // Corrección estricta para forzar el nombre y extensión
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'todo_golosinas_backup.csv'; 
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      
+      // Limpieza
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (err) {
+      console.error("Error al exportar:", err);
+      alert("Hubo un error al intentar exportar el archivo CSV.");
+    }
+  };
+
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target.result;
+      
+      // Native CSV Parser
+      const parseCSV = (str) => {
+        const arr = [];
+        let quote = false;
+        for (let row = 0, col = 0, c = 0; c < str.length; c++) {
+          let cc = str[c], nc = str[c+1];
+          arr[row] = arr[row] || [];
+          arr[row][col] = arr[row][col] || '';
+          if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+          if (cc == '"') { quote = !quote; continue; }
+          if (cc == ',' && !quote) { ++col; continue; }
+          if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+          if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+          if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+          arr[row][col] += cc;
+        }
+        return arr;
+      };
+
+      const rows = parseCSV(text).filter(r => r.length > 1 || r[0] !== '');
+      if (rows.length < 2) return alert('El CSV está vacío o es inválido.');
+      
+      const headers = rows[0].map(h => h.trim());
+      const parsedData = [];
+      
+      for (let i = 1; i < rows.length; i++) {
+        const rowData = rows[i];
+        const row = {};
+        headers.forEach((header, index) => {
+          let val = rowData[index] !== undefined ? rowData[index].trim() : '';
+          
+          if (header === 'price' || header === 'old_price') {
+             val = val ? parseFloat(val) : null;
+          } else if (header === 'is_offer' || header === 'is_featured' || header === 'in_stock') {
+             val = val.toLowerCase() === 'true';
+          }
+          
+          // Only add properties that exist in headers
+          if (header) row[header] = val;
+        });
+        parsedData.push(row);
+      }
+      
+      if (window.confirm(`¿Estás seguro de que deseas importar ${parsedData.length} productos? Esto podría sobrescribir datos existentes.`)) {
+        setIsSaving(true);
+        const { error } = await supabaseClient.from('products').upsert(parsedData);
+        setIsSaving(false);
+        if (error) {
+          alert('Error al importar CSV: ' + error.message);
+        } else {
+          alert('Productos importados exitosamente.');
+          fetchProducts();
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -121,10 +241,23 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-display font-bold text-2xl text-ink">Catálogo de Productos</h2>
-          <button onClick={() => openModal(null)} className="flex items-center gap-2 bg-brand text-white font-bold text-sm px-5 py-2.5 rounded-full hover:bg-brand-dark transition-all shadow-md active:scale-95">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-            Cargar Nuevo Producto <span className="text-white/60 ml-1 text-xs">(F4)</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={handleExportCSV} title="Exportar CSV" className="flex items-center gap-1.5 bg-emerald-500 text-white font-bold text-sm px-4 py-2.5 rounded-full hover:bg-emerald-600 transition-all shadow-md active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span className="hidden sm:inline">Exportar</span>
+            </button>
+            
+            <label title="Importar CSV" className="flex items-center gap-1.5 bg-gray-600 text-white font-bold text-sm px-4 py-2.5 rounded-full hover:bg-gray-700 transition-all shadow-md cursor-pointer active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              <span className="hidden sm:inline">Importar</span>
+              <input type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
+            </label>
+
+            <button onClick={() => openModal(null)} className="flex items-center gap-1.5 bg-brand text-white font-bold text-sm px-5 py-2.5 rounded-full hover:bg-brand-dark transition-all shadow-md active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Nuevo <span className="text-white/60 text-[10px] sm:text-xs ml-0.5">(F4)</span>
+            </button>
+          </div>
         </div>
 
         <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -255,6 +388,29 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                   </div>
                 </form>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center transform transition-all">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mt-4">¡Éxito!</h3>
+              <p className="text-gray-500 mt-2">{modalMessage}</p>
+              <button 
+                onClick={() => setShowSuccessModal(false)}
+                className="mt-6 w-full bg-brand text-white font-bold py-3 rounded-xl hover:bg-brand-dark transition-colors shadow-md">
+                Aceptar
+              </button>
             </motion.div>
           </motion.div>
         )}
