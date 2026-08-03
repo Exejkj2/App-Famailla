@@ -73,15 +73,12 @@ export default function SobreNosotros() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="flex-1 w-full max-w-md md:max-w-none relative"
           >
-            <div className="aspect-square bg-gradient-to-br from-brand/10 to-purple/10 rounded-[3rem] rotate-3 relative shadow-2xl">
-              <div className="absolute inset-0 bg-white/40 backdrop-blur-sm rounded-[3rem] border border-white/50 -rotate-3 overflow-hidden flex items-center justify-center p-8">
-                {/* Decorative illustration or placeholder for a real team/store photo */}
-                <div className="text-center">
-                  <span className="text-8xl block mb-4">🍬</span>
-                  <h3 className="font-display font-black text-2xl text-ink">Familia & Tradición</h3>
-                  <p className="text-ink-muted text-sm mt-2">Desde Famaillá para todo Tucumán</p>
-                </div>
-              </div>
+            <div className="aspect-square rounded-[3rem] rotate-3 relative shadow-2xl overflow-hidden border-4 border-white bg-gray-100">
+              <img 
+                src="/family.png" 
+                alt="Familia & Tradición" 
+                className="w-full h-full object-cover -rotate-3 scale-[1.15]" 
+              />
             </div>
             {/* Floating badge */}
             <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-xl border border-gray-100 flex items-center gap-4 animate-bounce" style={{ animationDuration: '3s' }}>
