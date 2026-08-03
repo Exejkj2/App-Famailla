@@ -1,0 +1,81 @@
+/* ============================================
+   TODO GOLOSINAS FAMAILLÁ — Custom Styles
+   ============================================ */
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Hero grid background pattern ── */
+.hero-grid-bg {
+  background-image:
+    linear-gradient(rgba(26, 31, 94, 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 31, 94, 0.4) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F5F5F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* ── Cart drawer scrollbar ── */
+#cart-drawer ::-webkit-scrollbar {
+  width: 4px;
+}
+#cart-drawer ::-webkit-scrollbar-track {
+  background: transparent;
+}
+#cart-drawer ::-webkit-scrollbar-thumb {
+  background: #E5E7EB;
+  border-radius: 2px;
+}
+
+/* ── Focus visible ── */
+:focus-visible {
+  outline: 2px solid #FFE600;
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Prevent layout shift on load ── */
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* ── Utility: text-shadow for hero headline ── */
+.hero-headline-shadow {
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
