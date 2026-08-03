@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabaseClient, mapToSupabase, CATEGORIES, fmt } from '../utils';
 
@@ -17,6 +17,11 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
+  
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isUploadingPic, setIsUploadingPic] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -105,6 +110,68 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
       if (error) alert('Error al eliminar: ' + error.message);
       else fetchProducts();
     }
+  };
+
+  const openCamera = async () => {
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      console.error('Error al acceder a la cámara:', err);
+      alert('No se pudo acceder a la cámara. Verifica los permisos de tu navegador.');
+      setIsCameraOpen(false);
+    }
+  };
+
+  const closeCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    }
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw the frame on canvas
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert to blob and upload
+    setIsUploadingPic(true);
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        alert('Error al procesar la imagen.');
+        setIsUploadingPic(false);
+        return;
+      }
+      
+      const fileName = `producto_${Date.now()}.jpg`;
+      const { error: uploadError } = await supabaseClient.storage.from('productos').upload(fileName, blob, { contentType: 'image/jpeg' });
+      
+      if (uploadError) {
+        console.error('Error al subir la imagen:', uploadError);
+        alert('Error al subir la imagen a Supabase.');
+        setIsUploadingPic(false);
+        return;
+      }
+      
+      const { data } = supabaseClient.storage.from('productos').getPublicUrl(fileName);
+      setForm(prev => ({ ...prev, img: data.publicUrl }));
+      
+      setIsUploadingPic(false);
+      closeCamera();
+    }, 'image/jpeg', 0.8);
   };
 
   const handleExportCSV = async () => {
@@ -360,7 +427,12 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-ink uppercase tracking-wider mb-1.5">URL de Imagen</label>
-                    <input type="text" value={form.img} onChange={e => setForm({...form, img: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="https://..." />
+                    <div className="flex gap-2">
+                      <input type="text" value={form.img} onChange={e => setForm({...form, img: e.target.value})} className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="https://..." />
+                      <button type="button" onClick={openCamera} className="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center shadow-sm" title="Tomar foto con la cámara">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="flex flex-col gap-3 mt-2 border-t border-gray-100 pt-4 bg-gray-50/50 -mx-6 px-6 pb-2">
@@ -387,6 +459,42 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                     </button>
                   </div>
                 </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isCameraOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-surface w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <h3 className="font-display font-bold text-xl text-ink">Tomar Foto</h3>
+                <button type="button" onClick={closeCamera} disabled={isUploadingPic} className="p-2 text-ink-muted hover:text-ink hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div className="relative bg-black flex-1 min-h-[300px] flex items-center justify-center">
+                <video ref={videoRef} className="w-full max-h-[60vh] object-contain" playsInline autoPlay muted />
+                <canvas ref={canvasRef} className="hidden" />
+                {isUploadingPic && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-white">
+                    <svg className="animate-spin h-8 w-8 text-emerald-400 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span className="font-semibold text-sm">Subiendo foto...</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 bg-gray-50 flex gap-3 justify-center">
+                <button type="button" onClick={closeCamera} disabled={isUploadingPic} className="flex-1 max-w-[140px] bg-gray-200 text-ink font-bold text-sm py-3 rounded-xl hover:bg-gray-300 transition-colors disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button type="button" onClick={capturePhoto} disabled={isUploadingPic} className="flex-1 max-w-[140px] bg-emerald-500 text-white font-bold text-sm py-3 rounded-xl hover:bg-emerald-600 transition-colors shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  Capturar
+                </button>
               </div>
             </motion.div>
           </motion.div>
