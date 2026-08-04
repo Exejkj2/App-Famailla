@@ -306,21 +306,21 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:justify-between mb-6">
           <h2 className="font-display font-bold text-2xl text-ink">Catálogo de Productos</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <button onClick={handleExportCSV} title="Exportar CSV" className="flex items-center gap-1.5 bg-emerald-500 text-white font-bold text-sm px-4 py-2.5 rounded-full hover:bg-emerald-600 transition-all shadow-md active:scale-95">
+          <div className="grid grid-cols-2 md:flex md:flex-row md:flex-wrap md:items-center gap-2">
+            <button onClick={handleExportCSV} title="Exportar CSV" className="flex justify-center items-center gap-1.5 bg-emerald-500 text-white font-bold text-sm px-4 py-2.5 rounded-full hover:bg-emerald-600 transition-all shadow-md active:scale-95">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span className="hidden sm:inline">Exportar</span>
+              <span className="hidden sm:inline md:inline">Exportar</span>
             </button>
             
-            <label title="Importar CSV" className="flex items-center gap-1.5 bg-gray-600 text-white font-bold text-sm px-4 py-2.5 rounded-full hover:bg-gray-700 transition-all shadow-md cursor-pointer active:scale-95">
+            <label title="Importar CSV" className="flex justify-center items-center gap-1.5 bg-gray-600 text-white font-bold text-sm px-4 py-2.5 rounded-full hover:bg-gray-700 transition-all shadow-md cursor-pointer active:scale-95">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-              <span className="hidden sm:inline">Importar</span>
+              <span className="hidden sm:inline md:inline">Importar</span>
               <input type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
             </label>
 
-            <button onClick={() => openModal(null)} className="flex items-center gap-1.5 bg-brand text-white font-bold text-sm px-5 py-2.5 rounded-full hover:bg-brand-dark transition-all shadow-md active:scale-95">
+            <button onClick={() => openModal(null)} className="col-span-2 md:col-auto w-full md:w-auto flex justify-center items-center gap-1.5 bg-brand text-white font-bold text-sm px-5 py-2.5 rounded-full hover:bg-brand-dark transition-all shadow-md active:scale-95">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Nuevo <span className="text-white/60 text-[10px] sm:text-xs ml-0.5">(F4)</span>
             </button>
@@ -331,7 +331,61 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
             <span className="text-sm font-semibold text-ink-muted">Total: {products.length} productos</span>
           </div>
-          <div className="overflow-x-auto">
+          {/* Vista de Tarjetas para Móviles */}
+          <div className="grid grid-cols-1 gap-4 md:hidden p-4">
+            {products.length === 0 && (
+              <div className="py-8 text-center text-ink-muted">No hay productos cargados en el catálogo.</div>
+            )}
+            {products.map(p => (
+              <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3">
+                {/* Fila 1: Imagen, Nombre y Categoría */}
+                <div className="flex gap-3 items-center">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-200/50 shadow-sm">
+                    <img src={p.img} alt={p.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-ink text-base truncate">{p.name}</h3>
+                    <p className="text-xs text-ink-muted uppercase tracking-wider font-semibold truncate">{p.category} • {p.unit}</p>
+                  </div>
+                </div>
+
+                {/* Fila 2: Precio y Badges */}
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-lg font-bold text-ink">{fmt(p.price)}</div>
+                  <div className="flex gap-1.5 flex-wrap justify-end">
+                    {p.isFeatured && <span className="bg-purple/10 text-purple text-[10px] font-bold px-2 py-1 rounded-full border border-purple/20">Destacado</span>}
+                    {p.isOffer && <span className="bg-accent/20 text-accent-dark text-[10px] font-bold px-2 py-1 rounded-full border border-accent/40">Oferta</span>}
+                    {!p.inStock && <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full border border-red-200">Agotado</span>}
+                  </div>
+                </div>
+
+                {/* Fila 3: Botones de Acción */}
+                <div className="flex gap-2 border-t border-gray-100 pt-3 mt-1">
+                  <button onClick={() => toggleStock(p.id, p.inStock)} title={p.inStock ? "Marcar como Agotado" : "Reponer Stock"}
+                    className={`flex-none flex items-center justify-center py-2 px-3 rounded-lg transition-colors ${p.inStock ? 'bg-gray-100 text-ink-muted hover:bg-gray-200 hover:text-ink' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}>
+                    {p.inStock ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    )}
+                  </button>
+                  <button onClick={() => openModal(p)}
+                    className="flex-1 flex items-center justify-center gap-1 bg-gray-100 text-ink-muted hover:bg-gray-200 hover:text-ink font-bold text-sm py-2 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Editar
+                  </button>
+                  <button onClick={() => handleDelete(p.id)}
+                    className="flex-1 flex items-center justify-center gap-1 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 font-bold text-sm py-2 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Vista de Tabla para Desktop */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase font-bold tracking-wider text-ink-muted border-b border-gray-100">
                 <tr>
