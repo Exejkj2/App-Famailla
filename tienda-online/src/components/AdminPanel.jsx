@@ -14,7 +14,7 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   const [form, setForm] = useState(defaultForm);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   
@@ -154,28 +154,34 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
 
   const handleSubmitProduct = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.price || !form.img) {
-      return showNotification('Completa nombre, precio e imagen', 'error');
+    if (!form.name || !form.price) {
+      return showNotification('El nombre y el precio son obligatorios', 'error');
+    }
+    if (Number(form.price) <= 0) {
+      return showNotification('El precio debe ser mayor a 0', 'error');
+    }
+    if (!form.img) {
+      return showNotification('La imagen es obligatoria', 'error');
     }
     if (isNewCategory && !newCategoryNameInline.trim()) {
       return showNotification('Ingresa un nombre para la nueva categoría', 'error');
     }
     
-    setIsSaving(true);
+    setIsSubmitting(true);
     
-    let finalCategory = form.category || (categories.length > 0 ? categories[0].name : '');
-    
-    if (isNewCategory && newCategoryNameInline.trim() !== '') {
-      const formattedName = toTitleCase(newCategoryNameInline.trim());
-      const { error: catError } = await supabaseClient.from('categories').insert([{ name: formattedName }]);
-      if (catError) {
-        showNotification('Error al guardar la nueva categoría: ' + catError.message, 'error');
-        setIsSaving(false);
-        return;
+    try {
+      let finalCategory = form.category || (categories.length > 0 ? categories[0].name : '');
+      
+      if (isNewCategory && newCategoryNameInline.trim() !== '') {
+        const formattedName = toTitleCase(newCategoryNameInline.trim());
+        const { error: catError } = await supabaseClient.from('categories').insert([{ name: formattedName }]);
+        if (catError) {
+          showNotification('Error al guardar la nueva categoría: ' + catError.message, 'error');
+          return;
+        }
+        finalCategory = formattedName;
+        fetchCategories(); 
       }
-      finalCategory = formattedName;
-      fetchCategories(); 
-    }
 
     const productData = {
       ...form,
@@ -217,7 +223,9 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
         closeModal();
       }
     }
-    setIsSaving(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleStock = async (id, currentStock) => {
@@ -247,7 +255,8 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   const handleSaveCategory = async (e) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    setIsSaving(true);
+    setIsSubmitting(true);
+    try {
     
     const formattedName = toTitleCase(newCatName.trim());
     
@@ -274,7 +283,9 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
         showNotification('Categoría creada exitosamente', 'success');
       }
     }
-    setIsSaving(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEditCategory = (cat) => {
@@ -305,6 +316,34 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   };
 
   // Camera Handlers
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      e.target.value = '';
+      return showNotification('La imagen es muy pesada. Máximo 5MB.', 'error');
+    }
+
+    setIsSubmitting(true);
+    const fileName = `producto_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
+    const { error: uploadError } = await supabaseClient.storage.from('productos').upload(fileName, file);
+
+    if (uploadError) {
+      console.error('Error al subir la imagen:', uploadError);
+      showNotification('Error al subir la imagen a Supabase.', 'error');
+      setIsSubmitting(false);
+      e.target.value = '';
+      return;
+    }
+
+    const { data } = supabaseClient.storage.from('productos').getPublicUrl(fileName);
+    setForm(prev => ({ ...prev, img: data.publicUrl }));
+    setIsSubmitting(false);
+    e.target.value = '';
+    showNotification('Imagen subida correctamente', 'success');
+  };
+
   const openCamera = async () => {
     setIsCameraOpen(true);
     try {
@@ -464,14 +503,17 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
         isOpen: true,
         message: `¿Estás seguro de que deseas importar ${parsedData.length} productos? Esto sobrescribirá datos si hay conflictos de ID.`,
         onConfirm: async () => {
-          setIsSaving(true);
-          const { error } = await supabaseClient.from('products').upsert(parsedData);
-          setIsSaving(false);
-          if (error) {
-            showNotification('Error al importar CSV: ' + error.message, 'error');
-          } else {
-            showNotification('Productos importados exitosamente.', 'success');
-            fetchProducts();
+          setIsSubmitting(true);
+          try {
+            const { error } = await supabaseClient.from('products').upsert(parsedData);
+            if (error) {
+              showNotification('Error al importar CSV: ' + error.message, 'error');
+            } else {
+              showNotification('Productos importados exitosamente.', 'success');
+              fetchProducts();
+            }
+          } finally {
+            setIsSubmitting(false);
           }
           setConfirmDialog({ isOpen: false, message: '', onConfirm: null });
         }
@@ -830,9 +872,11 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                         Cancelar
                       </button>
                     )}
-                    <button type="submit" disabled={isSaving || !newCatName.trim()} className="flex-1 sm:flex-none px-6 py-3 bg-brand hover:bg-brand-dark text-white font-bold text-sm rounded-xl transition-colors shadow-md shadow-brand/20 disabled:opacity-50">
-                      {isSaving ? 'Guardando...' : (editingCategory ? 'Actualizar' : 'Agregar')}
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button type="submit" disabled={isSubmitting || !newCatName.trim()} className="flex-1 sm:flex-none px-6 py-3 bg-brand hover:bg-brand-dark text-white font-bold text-sm rounded-xl transition-colors shadow-md shadow-brand/20 disabled:opacity-50">
+                        {isSubmitting ? 'Guardando...' : (editingCategory ? 'Actualizar' : 'Agregar')}
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>
@@ -1030,8 +1074,14 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                   <div>
                     <label className="block text-xs font-bold text-ink uppercase tracking-wider mb-1.5">URL de Imagen</label>
                     <div className="flex gap-2">
-                      <input type="text" value={form.img} onChange={e => setForm({...form, img: e.target.value})} className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" placeholder="https://..." />
-                      <button type="button" onClick={openCamera} className="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center shadow-sm" title="Tomar foto con la cámara">
+                      <input type="text" value={form.img} onChange={e => setForm({...form, img: e.target.value})} className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" placeholder="https://..." />
+                      
+                      <input type="file" accept="image/*" className="hidden" id="productImageUpload" onChange={handleImageUpload} />
+                      <button type="button" onClick={() => document.getElementById('productImageUpload').click()} disabled={isSubmitting} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center shadow-sm disabled:opacity-50 shrink-0" title="Subir desde dispositivo">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      </button>
+
+                      <button type="button" onClick={openCamera} disabled={isSubmitting} className="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center shadow-sm disabled:opacity-50 shrink-0" title="Tomar foto con la cámara">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       </button>
                     </div>
@@ -1058,8 +1108,8 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                   <button type="button" onClick={closeModal} className="flex-1 bg-gray-200 text-ink font-bold text-sm py-3 rounded-xl hover:bg-gray-300 transition-colors">
                     Cancelar
                   </button>
-                  <button type="submit" form="productForm" disabled={isSaving} className="flex-1 bg-ink text-white font-bold text-sm py-3 rounded-xl hover:bg-black transition-colors shadow-md disabled:opacity-50">
-                    {isSaving ? 'Guardando...' : (editingProduct ? 'Actualizar' : 'Guardar')}
+                  <button type="submit" form="productForm" disabled={isSubmitting} className="flex-1 bg-ink text-white font-bold text-sm py-3 rounded-xl hover:bg-black transition-colors shadow-md disabled:opacity-50">
+                    {isSubmitting ? 'Guardando...' : (editingProduct ? 'Actualizar' : 'Guardar')}
                   </button>
                 </div>
               </div>
