@@ -1,22 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import StatsBand from './components/StatsBand';
-import ProductGrid from './components/ProductGrid';
-import OffersGrid from './components/OffersGrid';
-import FeaturedProducts from './components/FeaturedProducts';
-import Promotions from './components/Promotions';
-import OffersPage from './components/OffersPage';
-import SobreNosotros from './components/SobreNosotros';
-import Ubicacion from './components/Ubicacion';
 import CartDrawer from './components/CartDrawer';
 import Toast from './components/Toast';
 import Footer from './components/Footer';
-import AdminPanel from './components/AdminPanel';
 import WhatsAppButton from './components/WhatsAppButton';
 import PromoPopup from './components/PromoPopup';
 import { mapToReact, supabaseClient } from './utils';
+
+const Hero = lazy(() => import('./components/Hero'));
+const StatsBand = lazy(() => import('./components/StatsBand'));
+const ProductGrid = lazy(() => import('./components/ProductGrid'));
+const OffersGrid = lazy(() => import('./components/OffersGrid'));
+const FeaturedProducts = lazy(() => import('./components/FeaturedProducts'));
+const Promotions = lazy(() => import('./components/Promotions'));
+const OffersPage = lazy(() => import('./components/OffersPage'));
+const SobreNosotros = lazy(() => import('./components/SobreNosotros'));
+const Ubicacion = lazy(() => import('./components/Ubicacion'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
 
 // OfferBanner extraído directamente
 function OfferBanner() {
@@ -97,7 +98,14 @@ export default function App() {
   };
 
   return (
-    <>
+    <Suspense fallback={
+      <div className="min-h-screen flex justify-center items-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-brand"></div>
+          <span className="text-brand font-bold animate-pulse">Cargando...</span>
+        </div>
+      </div>
+    }>
       <Routes>
         {/* --- RUTA DE ADMINISTRADOR (SIN LAYOUT PÚBLICO) --- */}
         <Route path="/admin" element={
@@ -177,7 +185,7 @@ export default function App() {
           </>
         } />
       </Routes>
-    </>
+    </Suspense>
   );
 }
 

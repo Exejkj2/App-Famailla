@@ -49,6 +49,8 @@ export default function PromoCarousel() {
                 key={i}
                 src={slide.src}
                 alt={slide.alt}
+                fetchPriority={i === 0 ? "high" : "auto"}
+                loading={i === 0 ? "eager" : "lazy"}
                 className="absolute inset-0 w-full h-full object-contain transition-all duration-700 ease-in-out"
                 style={{
                   opacity: i === current ? 1 : 0,
