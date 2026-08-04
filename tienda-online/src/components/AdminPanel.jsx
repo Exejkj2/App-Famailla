@@ -36,6 +36,15 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // Orders state
+  const [orders, setOrders] = useState([]);
+  
+  // Auth states
+  const [session, setSession] = useState(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   // --- NUEVOS ESTADOS DE NOTIFICACION Y CONFIRMACION ---
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null });
@@ -47,9 +56,49 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
     }, 3000);
   };
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsAuthenticating(true);
+    const { error } = await supabaseClient.auth.signInWithPassword({ email: authEmail, password: authPassword });
+    if (error) {
+      showNotification('Credenciales incorrectas', 'error');
+    }
+    setIsAuthenticating(false);
+  };
+
   useEffect(() => {
     fetchCategories();
+    fetchOrders();
+    
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const fetchOrders = async () => {
+    const { data, error } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
+    if (error) {
+      console.error("Error al obtener pedidos:", error);
+    } else {
+      setOrders(data || []);
+    }
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    const { error } = await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
+    if (error) {
+      showNotification('Error al actualizar pedido: ' + error.message, 'error');
+    } else {
+      showNotification('Estado del pedido actualizado', 'success');
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    }
+  };
 
   const fetchCategories = async () => {
     const { data, error } = await supabaseClient.from('categories').select('*').order('name');
@@ -437,6 +486,69 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
     (p.category && p.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans relative p-4">
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {notification.show && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+              className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-xl border ${
+                notification.type === 'success' 
+                  ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
+                  : 'bg-red-50 border-red-100 text-red-800'
+              }`}
+            >
+              {notification.type === 'success' ? (
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </div>
+              )}
+              <p className="font-bold text-sm leading-tight pr-2">{notification.message}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-brand rounded-full mx-auto flex items-center justify-center mb-4 shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <h1 className="font-display font-black text-2xl text-ink tracking-tight">Todo Golosinas Famaillá</h1>
+            <p className="text-sm text-ink-muted mt-2 font-bold uppercase tracking-widest">Admin</p>
+          </div>
+          
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-bold text-ink uppercase tracking-wider mb-2">Email</label>
+              <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required className="w-full bg-gray-50 border border-gray-200 text-ink text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all" placeholder="admin@ejemplo.com" autoFocus />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-ink uppercase tracking-wider mb-2">Contraseña</label>
+              <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required className="w-full bg-gray-50 border border-gray-200 text-ink text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all" placeholder="••••••••" />
+            </div>
+            <button type="submit" disabled={isAuthenticating} className="mt-4 w-full bg-brand text-white font-bold text-base py-3.5 rounded-xl hover:bg-brand-dark active:scale-[0.98] transition-all shadow-md shadow-brand/20 disabled:opacity-50">
+              {isAuthenticating ? 'Ingresando...' : 'Ingresar'}
+            </button>
+          </form>
+          <button onClick={onLogout} className="mt-6 w-full text-center flex items-center justify-center gap-2 text-ink-muted hover:text-brand font-semibold text-sm transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Volver a la tienda
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans relative">
       
@@ -536,11 +648,20 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'categorias' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-ink-muted hover:bg-gray-100 hover:text-ink'}`}>
             <span className="text-xl">🏷️</span> Categorías
           </button>
+          <button 
+            onClick={() => { setActiveTab('pedidos'); setIsSidebarOpen(false); }}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'pedidos' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-ink-muted hover:bg-gray-100 hover:text-ink'}`}>
+            <span className="text-xl">🛒</span> Pedidos
+          </button>
         </nav>
         
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
-          <button onClick={onLogout} className="flex items-center gap-2 w-full px-4 py-2 text-sm font-bold text-ink-muted hover:text-brand transition-colors">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 flex flex-col gap-2">
+          <button onClick={() => supabaseClient.auth.signOut()} className="flex items-center gap-2 w-full px-4 py-2 text-sm font-bold text-red-500 hover:text-red-600 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            Cerrar Sesión
+          </button>
+          <button onClick={onLogout} className="flex items-center gap-2 w-full px-4 py-2 text-sm font-bold text-ink-muted hover:text-brand transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             Salir a la tienda
           </button>
         </div>
@@ -737,6 +858,100 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ----- VISTA PEDIDOS ----- */}
+          {activeTab === 'pedidos' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:justify-between mb-8">
+                <h2 className="font-display font-bold text-3xl text-ink">Gestor de Pedidos</h2>
+              </div>
+              
+              <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                  <span className="text-sm font-semibold text-ink-muted">Total: {orders.length} pedidos</span>
+                </div>
+                
+                {/* Mobile Cards */}
+                <div className="grid grid-cols-1 gap-4 md:hidden p-4">
+                  {orders.length === 0 && <div className="py-8 text-center text-ink-muted">No hay pedidos registrados.</div>}
+                  {orders.map(o => (
+                    <div key={o.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start border-b border-gray-50 pb-2">
+                        <div>
+                          <p className="text-xs text-ink-muted font-bold uppercase tracking-wider">{new Date(o.created_at).toLocaleString()}</p>
+                          <h3 className="font-bold text-ink text-base">{o.customer_name}</h3>
+                          <p className="text-sm text-ink-muted">📞 {o.customer_phone}</p>
+                        </div>
+                        <div className="text-lg font-bold text-brand">{fmt(o.total)}</div>
+                      </div>
+                      <div className="pt-1">
+                        <select
+                          value={o.status || 'Pendiente'}
+                          onChange={e => updateOrderStatus(o.id, e.target.value)}
+                          className={`w-full font-bold text-sm px-3 py-2 rounded-lg border-none focus:ring-2 focus:ring-brand/50 transition-colors appearance-none ${
+                            o.status === 'Pendiente' ? 'bg-amber-100 text-amber-800' :
+                            o.status === 'Preparando' ? 'bg-blue-100 text-blue-800' :
+                            o.status === 'Entregado' ? 'bg-emerald-100 text-emerald-800' :
+                            o.status === 'Cancelado' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          <option value="Pendiente" className="bg-white text-ink">Pendiente</option>
+                          <option value="Preparando" className="bg-white text-ink">Preparando</option>
+                          <option value="Entregado" className="bg-white text-ink">Entregado</option>
+                          <option value="Cancelado" className="bg-white text-ink">Cancelado</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 text-xs uppercase font-bold tracking-wider text-ink-muted border-b border-gray-100">
+                      <tr>
+                        <th className="px-6 py-4">Fecha</th>
+                        <th className="px-6 py-4">Cliente</th>
+                        <th className="px-6 py-4">Teléfono</th>
+                        <th className="px-6 py-4">Total</th>
+                        <th className="px-6 py-4 text-right">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {orders.map(o => (
+                        <tr key={o.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 text-ink-muted font-medium">
+                            {new Date(o.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 font-bold text-ink">{o.customer_name}</td>
+                          <td className="px-6 py-4 text-ink-muted">{o.customer_phone}</td>
+                          <td className="px-6 py-4 font-bold text-brand">{fmt(o.total)}</td>
+                          <td className="px-6 py-4 text-right">
+                            <select
+                              value={o.status || 'Pendiente'}
+                              onChange={e => updateOrderStatus(o.id, e.target.value)}
+                              className={`font-bold text-sm px-3 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-brand/50 transition-colors cursor-pointer outline-none ${
+                                o.status === 'Pendiente' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' :
+                                o.status === 'Preparando' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
+                                o.status === 'Entregado' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' :
+                                o.status === 'Cancelado' ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              <option value="Pendiente" className="bg-white text-ink text-left">Pendiente</option>
+                              <option value="Preparando" className="bg-white text-ink text-left">Preparando</option>
+                              <option value="Entregado" className="bg-white text-ink text-left">Entregado</option>
+                              <option value="Cancelado" className="bg-white text-ink text-left">Cancelado</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {orders.length === 0 && <div className="py-12 text-center text-ink-muted">No hay pedidos registrados.</div>}
                 </div>
               </div>
             </motion.div>

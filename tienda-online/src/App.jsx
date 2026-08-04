@@ -11,7 +11,6 @@ import SobreNosotros from './components/SobreNosotros';
 import CartDrawer from './components/CartDrawer';
 import Toast from './components/Toast';
 import Footer from './components/Footer';
-import LoginView from './components/LoginView';
 import AdminPanel from './components/AdminPanel';
 import WhatsAppButton from './components/WhatsAppButton';
 import { mapToReact, supabaseClient } from './utils';
@@ -92,17 +91,13 @@ export default function App() {
   return (
     <>
       {/* ── View Content ── */}
-      {currentView === 'login' && (
-        <LoginView onLogin={() => setCurrentView('admin')} onBack={() => setCurrentView('store')} />
-      )}
-
       {currentView === 'admin' && (
         <AdminPanel products={products} fetchProducts={fetchProducts} onLogout={() => setCurrentView('store')} />
       )}
 
       {currentView === 'store' && (
         <>
-          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('login')} onNavigate={navigate} />
+          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('admin')} onNavigate={navigate} />
           <main>
             <Hero onShopNow={() => navigate('catalog')} onOffersClick={() => navigate('store')} />
             <StatsBand />
