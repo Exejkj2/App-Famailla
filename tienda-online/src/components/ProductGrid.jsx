@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CATEGORIES } from '../utils';
+import { supabaseClient } from '../utils';
 import ProductCard from './ProductCard';
 
 export default function ProductGrid({ products, onAdd }) {
   const [cat, setCat] = useState('Todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabaseClient.from('categories').select('*').order('name');
+      if (!error && data) {
+        setCategories(['Todos', ...data.map(c => c.name)]);
+      } else {
+        setCategories(['Todos']);
+      }
+    };
+    fetchCategories();
+  }, []);
   
   const all = products.filter(p => {
     const matchCat = cat === 'Todos' || p.category === cat;
@@ -43,7 +56,7 @@ export default function ProductGrid({ products, onAdd }) {
         </div>
 
         <div id="category-filter" className="flex items-center gap-2 mb-10 overflow-x-auto pb-4 px-4 scrollbar-none flex-nowrap justify-start md:justify-center -mx-4 md:mx-0">
-          {CATEGORIES.map(c => (
+          {categories.map(c => (
             <button key={c} id={`cat-${c.toLowerCase()}`} onClick={() => setCat(c)}
               className={`shrink-0 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 ${cat === c ? 'bg-brand text-white shadow-lg shadow-brand/30 scale-105' : 'bg-white text-ink-muted hover:bg-brand/10 hover:text-brand border border-gray-100 hover:border-brand/30'}`}>
               {c}
