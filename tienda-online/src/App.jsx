@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import StatsBand from './components/StatsBand';
@@ -43,7 +44,6 @@ function OfferBanner() {
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('store'); // 'store', 'login', 'admin'
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -83,89 +83,90 @@ export default function App() {
     setCart(prev => prev.map(i => i.id === id ? {...i, qty} : i));
   }, [removeFromCart]);
 
-  const navigate = (view) => {
-    setCurrentView(view);
+  const navigate = useNavigate();
+
+  const handleNavigate = (view) => {
     window.scrollTo(0, 0);
+    if (view === 'store') navigate('/');
+    else if (view === 'catalog') navigate('/productos');
+    else if (view === 'offers') navigate('/ofertas');
+    else if (view === 'about') navigate('/nosotros');
   };
 
   return (
     <>
-      {/* ── View Content ── */}
-      {currentView === 'admin' && (
-        <AdminPanel products={products} fetchProducts={fetchProducts} onLogout={() => setCurrentView('store')} />
-      )}
+      <Routes>
+        {/* --- RUTA DE ADMINISTRADOR (SIN LAYOUT PÚBLICO) --- */}
+        <Route path="/admin" element={
+          <AdminPanel products={products} fetchProducts={fetchProducts} onLogout={() => navigate('/')} />
+        } />
 
-      {currentView === 'store' && (
-        <>
-          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('admin')} onNavigate={navigate} />
-          <main>
-            <Hero onShopNow={() => navigate('catalog')} onOffersClick={() => navigate('store')} />
-            <StatsBand />
-            {isLoading ? (
-              <div className="flex justify-center items-center py-40">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
-              </div>
-            ) : (
-              <OffersGrid products={products} onAdd={addToCart} />
-            )}
-            <FeaturedProducts products={products} onAdd={addToCart} />
-            <Promotions />
+        {/* --- RUTAS PÚBLICAS (CON NAVBAR Y FOOTER) --- */}
+        <Route path="*" element={
+          <>
+            <Navbar 
+              cartCount={cartCount} 
+              onCartOpen={() => setCartOpen(true)} 
+              onLoginClick={() => navigate('/admin')} 
+              onNavigate={handleNavigate} 
+            />
+            
+            <Routes>
+              <Route path="/" element={
+                <main>
+                  <Hero onShopNow={() => handleNavigate('catalog')} onOffersClick={() => handleNavigate('store')} />
+                  <StatsBand />
+                  {isLoading ? (
+                    <div className="flex justify-center items-center py-40">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+                    </div>
+                  ) : (
+                    <OffersGrid products={products} onAdd={addToCart} />
+                  )}
+                  <FeaturedProducts products={products} onAdd={addToCart} />
+                  <Promotions />
+                  <OfferBanner />
+                </main>
+              } />
 
-            <OfferBanner />
-          </main>
-          <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
-          <Toast toast={toast} onClose={() => setToast(null)} />
-        </>
-      )}
+              <Route path="/productos" element={
+                <main className="pt-16 min-h-screen bg-bg">
+                  {isLoading ? (
+                    <div className="flex justify-center items-center py-40">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+                    </div>
+                  ) : (
+                    <ProductGrid products={products} onAdd={addToCart} />
+                  )}
+                </main>
+              } />
 
-      {currentView === 'catalog' && (
-        <>
-          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('login')} onNavigate={navigate} />
-          <main className="pt-16 min-h-screen bg-bg">
-            {isLoading ? (
-              <div className="flex justify-center items-center py-40">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
-              </div>
-            ) : (
-              <ProductGrid products={products} onAdd={addToCart} />
-            )}
-          </main>
-          <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
-          <Toast toast={toast} onClose={() => setToast(null)} />
-        </>
-      )}
+              <Route path="/ofertas" element={
+                <main>
+                  {isLoading ? (
+                    <div className="pt-16 flex justify-center items-center py-40">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+                    </div>
+                  ) : (
+                    <OffersPage products={products} onAdd={addToCart} />
+                  )}
+                </main>
+              } />
 
-      {currentView === 'offers' && (
-        <>
-          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('login')} onNavigate={navigate} />
-          <main>
-            {isLoading ? (
-              <div className="pt-16 flex justify-center items-center py-40">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
-              </div>
-            ) : (
-              <OffersPage products={products} onAdd={addToCart} />
-            )}
-          </main>
-          <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
-          <Toast toast={toast} onClose={() => setToast(null)} />
-        </>
-      )}
+              <Route path="/nosotros" element={
+                <main>
+                  <SobreNosotros />
+                </main>
+              } />
+            </Routes>
 
-      {currentView === 'about' && (
-        <>
-          <Navbar cartCount={cartCount} onCartOpen={() => setCartOpen(true)} onLoginClick={() => setCurrentView('login')} onNavigate={navigate} />
-          <main>
-            <SobreNosotros />
-          </main>
-          <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
-          <Toast toast={toast} onClose={() => setToast(null)} />
-        </>
-      )}
-
-      {/* ── Footer always visible ── */}
-      <Footer />
-      <WhatsAppButton />
+            <Footer />
+            <WhatsAppButton />
+            <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
+            <Toast toast={toast} onClose={() => setToast(null)} />
+          </>
+        } />
+      </Routes>
     </>
   );
 }

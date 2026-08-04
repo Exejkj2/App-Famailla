@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 
 export default function Navbar({ cartCount, onCartOpen, onLoginClick, onNavigate }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 20);
@@ -34,14 +36,16 @@ export default function Navbar({ cartCount, onCartOpen, onLoginClick, onNavigate
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <button id="login-open-btn" onClick={onLoginClick}
-            className="flex items-center gap-1.5 bg-surface text-ink px-3 sm:px-4 py-2 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
-            aria-label="Iniciar Sesión">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-ink/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <span className="hidden sm:block text-xs font-semibold">Ingresar</span>
-          </button>
+          {location.pathname === '/' && (
+            <button id="login-open-btn" onClick={onLoginClick}
+              className="flex items-center gap-1.5 bg-surface text-ink px-3 sm:px-4 py-2 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+              aria-label="Iniciar Sesión">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-ink/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="hidden sm:block text-xs font-semibold">Ingresar</span>
+            </button>
+          )}
 
           <button id="cart-open-btn" onClick={onCartOpen}
             className="relative flex items-center gap-1.5 sm:gap-2 bg-brand text-white px-3.5 sm:px-4 py-2 rounded-full hover:bg-brand-dark transition-all duration-200 shadow-md shadow-brand/20"
@@ -82,9 +86,11 @@ export default function Navbar({ cartCount, onCartOpen, onLoginClick, onNavigate
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('catalog'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Productos</button>
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('offers'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Ofertas</button>
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('about'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Nosotros</button>
-            <button onClick={() => { setMobileMenuOpen(false); onLoginClick(); }} className="text-base font-semibold text-brand text-left py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">
-              Iniciar Sesión
-            </button>
+            {location.pathname === '/' && (
+              <button onClick={() => { setMobileMenuOpen(false); onLoginClick(); }} className="text-base font-semibold text-brand text-left py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">
+                Iniciar Sesión
+              </button>
+            )}
           </motion.nav>
         )}
       </AnimatePresence>

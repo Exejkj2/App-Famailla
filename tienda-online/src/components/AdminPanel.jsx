@@ -100,6 +100,88 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
     }
   };
 
+  const printTicket = (order) => {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) {
+      showNotification('Por favor permite las ventanas emergentes (pop-ups)', 'error');
+      return;
+    }
+
+    let items = [];
+    try {
+      items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+    } catch (e) {
+      console.error("Error al parsear items del pedido", e);
+    }
+
+    let itemsHtml = '';
+    items.forEach(item => {
+      const q = item.quantity || 1;
+      const name = item.name || 'Producto';
+      const price = item.price || 0;
+      const subtotal = q * price;
+      
+      itemsHtml += `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+          <div style="flex: 1; padding-right: 10px;">${q}x ${name}</div>
+          <div style="text-align: right;">${fmt(subtotal)}</div>
+        </div>
+      `;
+    });
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Ticket de Venta - ${order.customer_name || ''}</title>
+        <style>
+          body {
+            font-family: monospace;
+            max-width: 300px;
+            margin: 0 auto;
+            padding: 10px;
+            color: #000;
+            background: #fff;
+          }
+          .text-center { text-align: center; }
+          .font-bold { font-weight: bold; }
+          .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
+          .total { font-size: 1.2em; text-align: right; margin-top: 10px; }
+          @media print {
+            body { width: 100%; margin: 0; padding: 0; }
+            @page { margin: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="text-center">
+          <div class="font-bold" style="font-size: 1.1em;">TODO GOLOSINAS FAMAILLÁ</div>
+          <div style="margin: 5px 0;">Ticket de Venta</div>
+          <div>${new Date(order.created_at).toLocaleString()}</div>
+        </div>
+        <div class="divider"></div>
+        <div>Cliente: ${order.customer_name}</div>
+        ${order.customer_phone ? `<div>Tel: ${order.customer_phone}</div>` : ''}
+        <div class="divider"></div>
+        ${itemsHtml}
+        <div class="divider"></div>
+        <div class="total font-bold">TOTAL: ${fmt(order.total)}</div>
+        
+        <script>
+          window.onafterprint = function() { window.close(); };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250); // Pequeño delay para asegurar renderizado en algunos navegadores
+  };
+
   const fetchCategories = async () => {
     const { data, error } = await supabaseClient.from('categories').select('*').order('name');
     if (error) {
@@ -932,7 +1014,7 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                         </div>
                         <div className="text-lg font-bold text-brand">{fmt(o.total)}</div>
                       </div>
-                      <div className="pt-1">
+                      <div className="pt-2 flex flex-col gap-2 border-t border-gray-50 mt-1">
                         <select
                           value={o.status || 'Pendiente'}
                           onChange={e => updateOrderStatus(o.id, e.target.value)}
@@ -948,6 +1030,9 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                           <option value="Entregado" className="bg-white text-ink">Entregado</option>
                           <option value="Cancelado" className="bg-white text-ink">Cancelado</option>
                         </select>
+                        <button onClick={() => printTicket(o)} className="flex items-center justify-center gap-2 w-full py-2 border border-gray-300 rounded-lg text-ink font-bold text-sm hover:bg-gray-50 transition-colors">
+                          🖨️ Imprimir Ticket
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -975,21 +1060,26 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                           <td className="px-6 py-4 text-ink-muted">{o.customer_phone}</td>
                           <td className="px-6 py-4 font-bold text-brand">{fmt(o.total)}</td>
                           <td className="px-6 py-4 text-right">
-                            <select
-                              value={o.status || 'Pendiente'}
-                              onChange={e => updateOrderStatus(o.id, e.target.value)}
-                              className={`font-bold text-sm px-3 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-brand/50 transition-colors cursor-pointer outline-none ${
-                                o.status === 'Pendiente' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' :
-                                o.status === 'Preparando' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
-                                o.status === 'Entregado' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' :
-                                o.status === 'Cancelado' ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              <option value="Pendiente" className="bg-white text-ink text-left">Pendiente</option>
-                              <option value="Preparando" className="bg-white text-ink text-left">Preparando</option>
-                              <option value="Entregado" className="bg-white text-ink text-left">Entregado</option>
-                              <option value="Cancelado" className="bg-white text-ink text-left">Cancelado</option>
-                            </select>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => printTicket(o)} className="flex items-center justify-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-ink font-bold text-xs hover:bg-gray-50 transition-colors" title="Imprimir Ticket">
+                                🖨️ Imprimir
+                              </button>
+                              <select
+                                value={o.status || 'Pendiente'}
+                                onChange={e => updateOrderStatus(o.id, e.target.value)}
+                                className={`font-bold text-sm px-3 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-brand/50 transition-colors cursor-pointer outline-none ${
+                                  o.status === 'Pendiente' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' :
+                                  o.status === 'Preparando' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
+                                  o.status === 'Entregado' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' :
+                                  o.status === 'Cancelado' ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                <option value="Pendiente" className="bg-white text-ink text-left">Pendiente</option>
+                                <option value="Preparando" className="bg-white text-ink text-left">Preparando</option>
+                                <option value="Entregado" className="bg-white text-ink text-left">Entregado</option>
+                                <option value="Cancelado" className="bg-white text-ink text-left">Cancelado</option>
+                              </select>
+                            </div>
                           </td>
                         </tr>
                       ))}

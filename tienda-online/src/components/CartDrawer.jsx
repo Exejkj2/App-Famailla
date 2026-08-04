@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fmt } from '../utils';
+import { fmt, supabaseClient } from '../utils';
 import CartItem from './CartItem';
 
 export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onClear }) {
@@ -55,24 +55,46 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-  const handleWhatsAppCheckout = () => {
+  const handleWhatsAppCheckout = async () => {
     if (cart.length === 0) return;
     
-    let message = "Hola Todo Golosinas, quiero pedir:\n";
-    cart.forEach(item => {
-      message += `- ${item.qty}x ${item.name} (${fmt(item.price * item.qty)})\n`;
-    });
-    
-    message += `\nSubtotal: ${fmt(subtotal)}`;
-    if (appliedCoupon) {
-      message += `\nCupón aplicado (${appliedCoupon.code}): -${fmt(discountAmount)}`;
-    }
-    message += `\n*Total a pagar: ${fmt(total)}*`;
+    try {
+      const orderPayload = {
+        customer_name: 'Cliente Web',
+        total: total,
+        items: cart,
+        status: 'Pendiente'
+      };
 
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappNumber = "5493816096311";
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, "_blank");
-    onClear();
+      const { error } = await supabaseClient.from('orders').insert([orderPayload]);
+
+      if (error) {
+        console.error("Error al guardar pedido en Supabase:", error);
+        alert('Hubo un problema al procesar tu pedido. Por favor intenta de nuevo.');
+        return;
+      }
+
+      alert('¡Pedido procesado con éxito! Te redirigiremos a WhatsApp para finalizar...');
+
+      let message = "Hola Todo Golosinas, quiero pedir:\n";
+      cart.forEach(item => {
+        message += `- ${item.qty}x ${item.name} (${fmt(item.price * item.qty)})\n`;
+      });
+      
+      message += `\nSubtotal: ${fmt(subtotal)}`;
+      if (appliedCoupon) {
+        message += `\nCupón aplicado (${appliedCoupon.code}): -${fmt(discountAmount)}`;
+      }
+      message += `\n*Total a pagar: ${fmt(total)}*`;
+
+      const encodedMessage = encodeURIComponent(message);
+      const whatsappNumber = "5493816096311";
+      window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, "_blank");
+      onClear();
+    } catch (err) {
+      console.error("Error inesperado:", err);
+      alert('Hubo un error inesperado al procesar el pedido.');
+    }
   };
 
   return (
