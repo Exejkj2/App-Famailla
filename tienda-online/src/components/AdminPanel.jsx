@@ -19,7 +19,7 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
   const [modalMessage, setModalMessage] = useState('');
   
   // Dashboard states
-  const [activeTab, setActiveTab] = useState('productos');
+  const [activeTab, setActiveTab] = useState('resumen');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -66,9 +66,45 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
     setIsAuthenticating(false);
   };
 
+  // --- NUEVOS ESTADOS DE ESTADÍSTICAS ---
+  const [stats, setStats] = useState({ totalProducts: 0, totalCategories: 0, pendingOrders: 0, totalRevenue: 0, recentOrders: [] });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  const fetchStats = async () => {
+    setIsLoadingStats(true);
+    try {
+      const [
+        { count: prodCount },
+        { count: catCount },
+        { count: pendingCount },
+        { data: allOrders }
+      ] = await Promise.all([
+        supabaseClient.from('products').select('*', { count: 'exact', head: true }),
+        supabaseClient.from('categories').select('*', { count: 'exact', head: true }),
+        supabaseClient.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'Pendiente'),
+        supabaseClient.from('orders').select('*').order('created_at', { ascending: false })
+      ]);
+      
+      const revenue = (allOrders || []).filter(o => o.status !== 'Cancelado').reduce((s, o) => s + (Number(o.total) || 0), 0);
+      const recent = (allOrders || []).slice(0, 5);
+
+      setStats({
+        totalProducts: prodCount || 0,
+        totalCategories: catCount || 0,
+        pendingOrders: pendingCount || 0,
+        totalRevenue: revenue,
+        recentOrders: recent
+      });
+    } catch(err) {
+      console.error("Error fetching stats", err);
+    }
+    setIsLoadingStats(false);
+  };
+
   useEffect(() => {
     fetchCategories();
     fetchOrders();
+    fetchStats();
     
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -763,6 +799,11 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
         
         <nav className="p-4 flex flex-col gap-2">
           <button 
+            onClick={() => { setActiveTab('resumen'); setIsSidebarOpen(false); }}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'resumen' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-ink-muted hover:bg-gray-100 hover:text-ink'}`}>
+            <span className="text-xl">📊</span> Resumen
+          </button>
+          <button 
             onClick={() => { setActiveTab('productos'); setIsSidebarOpen(false); }}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'productos' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-ink-muted hover:bg-gray-100 hover:text-ink'}`}>
             <span className="text-xl">📦</span> Productos
@@ -806,6 +847,103 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           
+          {/* ----- VISTA RESUMEN ----- */}
+          {activeTab === 'resumen' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <h2 className="font-display font-bold text-3xl text-ink mb-2">Panel de Control</h2>
+              
+              {isLoadingStats ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                        <span className="text-2xl">📦</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500">Total Productos</p>
+                        <p className="text-3xl font-bold text-gray-800">{stats.totalProducts}</p>
+                      </div>
+                    </div>
+                    {/* Card 2 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+                        <span className="text-2xl">🏷️</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500">Total Categorías</p>
+                        <p className="text-3xl font-bold text-gray-800">{stats.totalCategories}</p>
+                      </div>
+                    </div>
+                    {/* Card 3 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <span className="text-2xl">⏱️</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500">Pedidos Pendientes</p>
+                        <p className="text-3xl font-bold text-gray-800">{stats.pendingOrders}</p>
+                      </div>
+                    </div>
+                    {/* Card 4 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                        <span className="text-2xl">💰</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500">Ingresos Totales</p>
+                        <p className="text-3xl font-bold text-gray-800">{fmt(stats.totalRevenue)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Últimos Pedidos */}
+                  <div className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+                      <h3 className="font-bold text-lg text-ink">Últimos Pedidos</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      {stats.recentOrders.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No hay pedidos recientes.</div>
+                      ) : (
+                        <table className="w-full text-left border-collapse min-w-[600px]">
+                          <thead>
+                            <tr className="bg-white border-b border-gray-100">
+                              <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
+                              <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
+                              <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</th>
+                              <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {stats.recentOrders.map(order => (
+                              <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="py-3 px-6 text-sm font-semibold text-gray-800">{order.customer_name}</td>
+                                <td className="py-3 px-6 text-sm font-bold text-brand">{fmt(order.total)}</td>
+                                <td className="py-3 px-6 text-sm">
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${order.status === 'Completado' ? 'bg-emerald-100 text-emerald-800' : order.status === 'Cancelado' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`}>
+                                    {order.status}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-6 text-sm text-gray-500">
+                                  {new Date(order.created_at).toLocaleDateString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
           {/* ----- VISTA PRODUCTOS ----- */}
           {activeTab === 'productos' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>

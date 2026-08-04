@@ -35,4 +35,7 @@ export const mapToSupabase = (reactProduct) => ({
 
 export const CATEGORIES = ['Todos', 'Gomitas', 'Chocolates', 'Alfajores', 'Chupetines', 'Caramelos', 'Snacks', 'Turrones', 'Chicles'];
 
+export const WHATSAPP_NUMBER = '5493814753011';
+export const WHATSAPP_DISPLAY = '381 475-3011';
+
 export const fmt = (n) => new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', minimumFractionDigits:0 }).format(n);

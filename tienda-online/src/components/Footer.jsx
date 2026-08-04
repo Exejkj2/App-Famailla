@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { WHATSAPP_DISPLAY } from '../utils';
 
 const NAV_LINKS = [
   { label: 'Inicio', href: '#inicio' },
@@ -9,7 +10,7 @@ const NAV_LINKS = [
 
 const CONTACT_ITEMS = [
   { icon: '📍', text: 'Famaillá, Tucumán, Argentina' },
-  { icon: '📞', text: '+54 381 XXX-XXXX' },
+  { icon: '📞', text: `+54 ${WHATSAPP_DISPLAY}` },
   { icon: '✉️', text: 'ventas@todogolosinas.com' },
   { icon: '🕐', text: 'Lun - Sáb: 8:00 a 20:00' },
 ];

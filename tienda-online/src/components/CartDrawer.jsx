@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fmt, supabaseClient } from '../utils';
+import { fmt, supabaseClient, WHATSAPP_NUMBER } from '../utils';
 import CartItem from './CartItem';
 
 export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onClear }) {
@@ -15,6 +15,7 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
   // Estados de checkout
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [whatsappUrl, setWhatsappUrl] = useState('');
 
   // Descuentos hardcodeados de ejemplo
   const validCoupons = {
@@ -80,8 +81,6 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
         return;
       }
 
-      setIsRedirecting(true);
-
       let message = "Hola Todo Golosinas, quiero pedir:\n";
       cart.forEach(item => {
         message += `- ${item.qty}x ${item.name} (${fmt(item.price * item.qty)})\n`;
@@ -94,13 +93,18 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
       message += `\n*Total a pagar: ${fmt(total)}*`;
 
       const encodedMessage = encodeURIComponent(message);
-      const whatsappNumber = "5493816096311";
+      const whatsappNumber = WHATSAPP_NUMBER;
+      const finalUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+      
+      setWhatsappUrl(finalUrl);
+      setIsRedirecting(true);
       
       setTimeout(() => {
-        window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, "_blank");
+        window.location.href = finalUrl;
         onClear();
         setIsRedirecting(false);
         setIsSubmitting(false);
+        setWhatsappUrl('');
       }, 2000);
       
     } catch (err) {
@@ -159,13 +163,32 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
                   initial={{ opacity: 0 }} 
                   animate={{ opacity: 1 }} 
                   transition={{ delay: 0.4 }}
-                  className="flex items-center justify-center gap-2 text-ink-muted mt-4 font-semibold text-sm"
+                  className="flex flex-col items-center justify-center mt-4"
                 >
-                  <svg className="animate-spin h-5 w-5 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Redirigiendo a WhatsApp...
+                  <div className="flex items-center justify-center gap-2 text-ink-muted font-semibold text-sm mb-6">
+                    <svg className="animate-spin h-5 w-5 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Redirigiendo a WhatsApp...
+                  </div>
+
+                  {whatsappUrl && (
+                    <motion.a 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8 }}
+                      href={whatsappUrl} 
+                      className="inline-block px-8 py-3 border-2 border-brand text-brand font-bold uppercase tracking-wider rounded-full text-xs hover:bg-brand hover:text-white transition-all duration-300"
+                      onClick={() => {
+                        onClear();
+                        setIsRedirecting(false);
+                        setWhatsappUrl('');
+                      }}
+                    >
+                      Terminar Comprar
+                    </motion.a>
+                  )}
                 </motion.div>
               </div>
             ) : (
