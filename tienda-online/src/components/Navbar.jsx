@@ -32,6 +32,7 @@ export default function Navbar({ cartCount, onCartOpen, onLoginClick, onNavigate
           <button onClick={() => onNavigate('store')} className="text-sm font-semibold text-ink/70 hover:text-brand transition-colors duration-150 outline-none">Inicio</button>
           <button onClick={() => onNavigate('catalog')} className="text-sm font-semibold text-ink/70 hover:text-brand transition-colors duration-150 outline-none">Productos</button>
           <button onClick={() => onNavigate('offers')} className="text-sm font-semibold text-ink/70 hover:text-brand transition-colors duration-150 outline-none">Ofertas</button>
+          <button onClick={() => onNavigate('location')} className="text-sm font-semibold text-ink/70 hover:text-brand transition-colors duration-150 outline-none">Dónde encontrarnos</button>
           <button onClick={() => onNavigate('about')} className="text-sm font-semibold text-ink/70 hover:text-brand transition-colors duration-150 outline-none">Nosotros</button>
         </nav>
 
@@ -85,6 +86,7 @@ export default function Navbar({ cartCount, onCartOpen, onLoginClick, onNavigate
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('store'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Inicio</button>
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('catalog'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Productos</button>
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('offers'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Ofertas</button>
+            <button onClick={() => { setMobileMenuOpen(false); onNavigate('location'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Dónde encontrarnos</button>
             <button onClick={() => { setMobileMenuOpen(false); onNavigate('about'); }} className="text-base text-left font-semibold text-ink hover:text-brand py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">Nosotros</button>
             {location.pathname === '/' && (
               <button onClick={() => { setMobileMenuOpen(false); onLoginClick(); }} className="text-base font-semibold text-brand text-left py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">

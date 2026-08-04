@@ -9,6 +9,7 @@ import FeaturedProducts from './components/FeaturedProducts';
 import Promotions from './components/Promotions';
 import OffersPage from './components/OffersPage';
 import SobreNosotros from './components/SobreNosotros';
+import Ubicacion from './components/Ubicacion';
 import CartDrawer from './components/CartDrawer';
 import Toast from './components/Toast';
 import Footer from './components/Footer';
@@ -90,6 +91,7 @@ export default function App() {
     if (view === 'store') navigate('/');
     else if (view === 'catalog') navigate('/productos');
     else if (view === 'offers') navigate('/ofertas');
+    else if (view === 'location') navigate('/ubicacion');
     else if (view === 'about') navigate('/nosotros');
   };
 
@@ -150,6 +152,12 @@ export default function App() {
                   ) : (
                     <OffersPage products={products} onAdd={addToCart} />
                   )}
+                </main>
+              } />
+
+              <Route path="/ubicacion" element={
+                <main>
+                  <Ubicacion />
                 </main>
               } />
 
