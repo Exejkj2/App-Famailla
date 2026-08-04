@@ -12,6 +12,10 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
   const [couponError, setCouponError] = useState('');
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
 
+  // Estados de checkout
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
   // Descuentos hardcodeados de ejemplo
   const validCoupons = {
     'PROMO10': { type: 'percent', value: 10 },
@@ -56,7 +60,8 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
   }, [isOpen]);
 
   const handleWhatsAppCheckout = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isSubmitting || isRedirecting) return;
+    setIsSubmitting(true);
     
     try {
       const orderPayload = {
@@ -71,10 +76,11 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
       if (error) {
         console.error("Error al guardar pedido en Supabase:", error);
         alert('Hubo un problema al procesar tu pedido. Por favor intenta de nuevo.');
+        setIsSubmitting(false);
         return;
       }
 
-      alert('¡Pedido procesado con éxito! Te redirigiremos a WhatsApp para finalizar...');
+      setIsRedirecting(true);
 
       let message = "Hola Todo Golosinas, quiero pedir:\n";
       cart.forEach(item => {
@@ -89,11 +95,18 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
 
       const encodedMessage = encodeURIComponent(message);
       const whatsappNumber = "5493816096311";
-      window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, "_blank");
-      onClear();
+      
+      setTimeout(() => {
+        window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, "_blank");
+        onClear();
+        setIsRedirecting(false);
+        setIsSubmitting(false);
+      }, 2000);
+      
     } catch (err) {
       console.error("Error inesperado:", err);
       alert('Hubo un error inesperado al procesar el pedido.');
+      setIsSubmitting(false);
     }
   };
 
@@ -123,89 +136,137 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto px-6">
-              {cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                  <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center mb-5">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-                    </svg>
-                  </div>
-                  <p className="font-display font-bold text-xl text-ink mb-2">Carrito vacío</p>
-                  <button onClick={onClose} className="bg-brand text-white font-semibold px-6 py-3 rounded-full hover:bg-brand-dark transition-colors text-sm shadow-md">
-                    Explorar productos
-                  </button>
-                </div>
-              ) : (
-                <AnimatePresence>
-                  {cart.map(item => <CartItem key={item.id} item={item} onRemove={onRemove} onQty={onQty} />)}
-                </AnimatePresence>
-              )}
-            </div>
-
-            {cart.length > 0 && (
-              <div className="px-6 py-6 border-t border-gray-100 bg-surface/95 backdrop-blur-sm">
-                {/* Sección Cupón */}
-                <div className="mb-5 pb-5 border-b border-gray-100 border-dashed">
-                  {!appliedCoupon ? (
-                    <button onClick={() => setIsDiscountModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                      </svg>
-                      Agregar código de descuento
-                    </button>
-                  ) : (
-                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 px-4 py-3 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        <div>
-                          <p className="text-xs font-bold text-emerald-700">Cupón aplicado: {appliedCoupon.code}</p>
-                          <p className="text-[10px] text-emerald-600 font-medium">-{fmt(discountAmount)} descuento</p>
-                        </div>
+            {isRedirecting ? (
+              <div className="flex flex-col items-center justify-center flex-1 p-6 text-center h-full">
+                <motion.div 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-sm border border-emerald-200"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </motion.div>
+                <motion.h3 
+                  initial={{ opacity: 0, y: 10 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  transition={{ delay: 0.2 }}
+                  className="font-display font-black text-2xl text-ink mb-2 leading-tight"
+                >
+                  ¡Pedido procesado con éxito!
+                </motion.h3>
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  transition={{ delay: 0.4 }}
+                  className="flex items-center justify-center gap-2 text-ink-muted mt-4 font-semibold text-sm"
+                >
+                  <svg className="animate-spin h-5 w-5 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Redirigiendo a WhatsApp...
+                </motion.div>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto px-6">
+                  {cart.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-20">
+                      <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center mb-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
                       </div>
-                      <button onClick={handleRemoveCoupon} className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline">Quitar</button>
+                      <p className="font-display font-bold text-xl text-ink mb-2">Carrito vacío</p>
+                      <button onClick={onClose} className="bg-brand text-white font-semibold px-6 py-3 rounded-full hover:bg-brand-dark transition-colors text-sm shadow-md">
+                        Explorar productos
+                      </button>
                     </div>
+                  ) : (
+                    <AnimatePresence>
+                      {cart.map(item => <CartItem key={item.id} item={item} onRemove={onRemove} onQty={onQty} />)}
+                    </AnimatePresence>
                   )}
                 </div>
 
-                {/* Resumen Totales */}
-                <div className="flex justify-between items-baseline mb-1">
-                  <span className="text-sm text-ink-muted font-medium">Subtotal</span>
-                  <span className="font-semibold text-lg text-ink">{fmt(subtotal)}</span>
-                </div>
-                {appliedCoupon && (
-                  <div className="flex justify-between items-baseline mb-1 text-emerald-600">
-                    <span className="text-sm font-medium">Descuento</span>
-                    <span className="font-semibold text-lg">-{fmt(discountAmount)}</span>
+                {cart.length > 0 && (
+                  <div className="px-6 py-6 border-t border-gray-100 bg-surface/95 backdrop-blur-sm">
+                    {/* Sección Cupón */}
+                    <div className="mb-5 pb-5 border-b border-gray-100 border-dashed">
+                      {!appliedCoupon ? (
+                        <button onClick={() => setIsDiscountModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                          </svg>
+                          Agregar código de descuento
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 px-4 py-3 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                            <div>
+                              <p className="text-xs font-bold text-emerald-700">Cupón aplicado: {appliedCoupon.code}</p>
+                              <p className="text-[10px] text-emerald-600 font-medium">-{fmt(discountAmount)} descuento</p>
+                            </div>
+                          </div>
+                          <button onClick={handleRemoveCoupon} className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline">Quitar</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resumen Totales */}
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="text-sm text-ink-muted font-medium">Subtotal</span>
+                      <span className="font-semibold text-lg text-ink">{fmt(subtotal)}</span>
+                    </div>
+                    {appliedCoupon && (
+                      <div className="flex justify-between items-baseline mb-1 text-emerald-600">
+                        <span className="text-sm font-medium">Descuento</span>
+                        <span className="font-semibold text-lg">-{fmt(discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-baseline mb-1 mt-2">
+                      <span className="text-sm text-ink font-bold uppercase tracking-wide">Total a Pagar</span>
+                      <span className="font-black text-2xl text-brand">{fmt(total)}</span>
+                    </div>
+                    
+                    <p className="text-[10px] text-ink-muted mb-5 text-right">Envío calculado en WhatsApp.</p>
+                    
+                    <button id="checkout-btn" onClick={handleWhatsAppCheckout} disabled={isSubmitting}
+                      className="flex items-center justify-center gap-2 w-full bg-brand text-white font-bold text-base py-4 rounded-full hover:bg-brand-dark active:scale-[0.98] transition-all duration-200 shadow-lg shadow-brand/25 disabled:opacity-50 disabled:cursor-not-allowed">
+                      {isSubmitting ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Procesando...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 002 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                          </svg>
+                          Pedir por WhatsApp
+                        </>
+                      )}
+                    </button>
+                    
+                    <div className="flex flex-col items-center gap-2 mt-4">
+                      <button onClick={onClose} disabled={isSubmitting} className="text-ink-muted text-sm font-medium hover:text-ink transition-colors py-1 disabled:opacity-50">
+                        Seguir comprando
+                      </button>
+                      <button onClick={onClear} disabled={isSubmitting} className="text-red-500 hover:text-red-700 text-sm font-semibold flex items-center gap-1 transition-colors py-1 disabled:opacity-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Vaciar carrito
+                      </button>
+                    </div>
                   </div>
                 )}
-                <div className="flex justify-between items-baseline mb-1 mt-2">
-                  <span className="text-sm text-ink font-bold uppercase tracking-wide">Total a Pagar</span>
-                  <span className="font-black text-2xl text-brand">{fmt(total)}</span>
-                </div>
-                
-                <p className="text-[10px] text-ink-muted mb-5 text-right">Envío calculado en WhatsApp.</p>
-                
-                <button id="checkout-btn" onClick={handleWhatsAppCheckout}
-                  className="flex items-center justify-center gap-2 w-full bg-brand text-white font-bold text-base py-4 rounded-full hover:bg-brand-dark active:scale-[0.98] transition-all duration-200 shadow-lg shadow-brand/25">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 002 2v6a2 2 0 002 2h2v4l.586-.586z" />
-                  </svg>
-                  Pedir por WhatsApp
-                </button>
-                
-                <div className="flex flex-col items-center gap-2 mt-4">
-                  <button onClick={onClose} className="text-ink-muted text-sm font-medium hover:text-ink transition-colors py-1">
-                    Seguir comprando
-                  </button>
-                  <button onClick={onClear} className="text-red-500 hover:text-red-700 text-sm font-semibold flex items-center gap-1 transition-colors py-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Vaciar carrito
-                  </button>
-                </div>
-              </div>
+              </>
             )}
           </motion.aside>
 
