@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabaseClient, mapToSupabase, fmt } from '../utils';
+import MarketingPanel from './MarketingPanel';
 
 const toTitleCase = (str) => {
   if (!str) return '';
@@ -818,6 +819,11 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'pedidos' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-ink-muted hover:bg-gray-100 hover:text-ink'}`}>
             <span className="text-xl">🛒</span> Pedidos
           </button>
+          <button 
+            onClick={() => { setActiveTab('marketing'); setIsSidebarOpen(false); }}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'marketing' ? 'bg-brand text-white shadow-md shadow-brand/20' : 'text-ink-muted hover:bg-gray-100 hover:text-ink'}`}>
+            <span className="text-xl">📢</span> Marketing
+          </button>
         </nav>
         
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 flex flex-col gap-2">
@@ -1227,6 +1233,11 @@ export default function AdminPanel({ products, fetchProducts, onLogout }) {
                 </div>
               </div>
             </motion.div>
+          )}
+
+          {/* ----- VISTA MARKETING ----- */}
+          {activeTab === 'marketing' && (
+            <MarketingPanel showNotification={showNotification} />
           )}
 
         </main>

@@ -15,6 +15,7 @@ import Toast from './components/Toast';
 import Footer from './components/Footer';
 import AdminPanel from './components/AdminPanel';
 import WhatsAppButton from './components/WhatsAppButton';
+import PromoPopup from './components/PromoPopup';
 import { mapToReact, supabaseClient } from './utils';
 
 // OfferBanner extraído directamente
@@ -170,6 +171,7 @@ export default function App() {
 
             <Footer />
             <WhatsAppButton />
+            <PromoPopup />
             <CartDrawer isOpen={cartOpen} cart={cart} onClose={() => setCartOpen(false)} onRemove={removeFromCart} onQty={changeQty} onClear={() => setCart([])} />
             <Toast toast={toast} onClose={() => setToast(null)} />
           </>
