@@ -6,34 +6,55 @@ import CartItem from './CartItem';
 export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onClear }) {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   
-  // Lógica de Cupón
+  // Lógica de Cupón con Supabase
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
-  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [couponSuccess, setCouponSuccess] = useState('');
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
   // Estados de checkout
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
 
-  // Descuentos hardcodeados de ejemplo
-  const validCoupons = {
-    'PROMO10': { type: 'percent', value: 10 },
-    'GOLOSINAS20': { type: 'percent', value: 20 },
-    'ENVIOFREE': { type: 'fixed', value: 1500 }
-  };
-
-  const handleApplyCoupon = () => {
+  // Validar cupón en Supabase
+  const handleApplyCoupon = async () => {
     const code = couponInput.trim().toUpperCase();
     if (!code) return;
-    
-    if (validCoupons[code]) {
-      setAppliedCoupon({ code, ...validCoupons[code] });
-      setCouponError('');
-    } else {
+
+    setIsValidatingCoupon(true);
+    setCouponError('');
+    setCouponSuccess('');
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('coupons')
+        .select('*')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error consultando cupón en Supabase:", error);
+        setCouponError('Error al validar el cupón. Intente de nuevo.');
+        setAppliedCoupon(null);
+      } else if (!data) {
+        setCouponError('El código ingresado no existe.');
+        setAppliedCoupon(null);
+      } else if (data.is_used) {
+        setCouponError('Este cupón ya ha sido utilizado.');
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon(data);
+        setCouponSuccess(`¡Cupón del ${data.discount_percentage}% de descuento aplicado!`);
+        setCouponError('');
+      }
+    } catch (err) {
+      console.error("Error inesperado al validar cupón:", err);
+      setCouponError('Error al conectar con el servidor.');
       setAppliedCoupon(null);
-      setCouponError('Cupón inválido');
+    } finally {
+      setIsValidatingCoupon(false);
     }
   };
 
@@ -41,16 +62,13 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
     setAppliedCoupon(null);
     setCouponInput('');
     setCouponError('');
+    setCouponSuccess('');
   };
 
   // Cálculo de total con descuento
   let discountAmount = 0;
-  if (appliedCoupon) {
-    if (appliedCoupon.type === 'percent') {
-      discountAmount = subtotal * (appliedCoupon.value / 100);
-    } else if (appliedCoupon.type === 'fixed') {
-      discountAmount = appliedCoupon.value;
-    }
+  if (appliedCoupon && appliedCoupon.discount_percentage) {
+    discountAmount = (subtotal * appliedCoupon.discount_percentage) / 100;
   }
   
   const total = Math.max(0, subtotal - discountAmount);
@@ -69,7 +87,9 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
         customer_name: 'Cliente Web',
         total: total,
         items: cart,
-        status: 'Pendiente'
+        status: 'Pendiente',
+        coupon_code: appliedCoupon ? appliedCoupon.code : null,
+        discount_amount: discountAmount
       };
 
       const { error } = await supabaseClient.from('orders').insert([orderPayload]);
@@ -81,6 +101,18 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
         return;
       }
 
+      // Marcar cupón como usado en Supabase justo antes de redireccionar a WhatsApp
+      if (appliedCoupon) {
+        const { error: updateCouponError } = await supabaseClient
+          .from('coupons')
+          .update({ is_used: true })
+          .eq('id', appliedCoupon.id);
+
+        if (updateCouponError) {
+          console.error("Error al actualizar cupón como usado:", updateCouponError);
+        }
+      }
+
       let message = "Hola Todo Golosinas, quiero pedir:\n";
       cart.forEach(item => {
         message += `- ${item.qty}x ${item.name} (${fmt(item.price * item.qty)})\n`;
@@ -88,7 +120,7 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
       
       message += `\nSubtotal: ${fmt(subtotal)}`;
       if (appliedCoupon) {
-        message += `\nCupón aplicado (${appliedCoupon.code}): -${fmt(discountAmount)}`;
+        message += `\nCupón aplicado (${appliedCoupon.code} - ${appliedCoupon.discount_percentage}%): -${fmt(discountAmount)}`;
       }
       message += `\n*Total a pagar: ${fmt(total)}*`;
 
@@ -102,6 +134,10 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
       setTimeout(() => {
         window.location.href = finalUrl;
         onClear();
+        setAppliedCoupon(null);
+        setCouponInput('');
+        setCouponError('');
+        setCouponSuccess('');
         setIsRedirecting(false);
         setIsSubmitting(false);
         setWhatsappUrl('');
@@ -215,25 +251,68 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
 
                 {cart.length > 0 && (
                   <div className="px-6 py-6 border-t border-gray-100 bg-surface/95 backdrop-blur-sm">
-                    {/* Sección Cupón */}
+                    {/* Sección Cupón de Descuento */}
                     <div className="mb-5 pb-5 border-b border-gray-100 border-dashed">
                       {!appliedCoupon ? (
-                        <button onClick={() => setIsDiscountModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                          </svg>
-                          Agregar código de descuento
-                        </button>
+                        <div>
+                          <label htmlFor="coupon-input" className="block text-xs font-semibold text-ink-muted mb-1.5">
+                            ¿Tenés un cupón de descuento?
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              id="coupon-input"
+                              type="text"
+                              value={couponInput}
+                              onChange={(e) => {
+                                setCouponInput(e.target.value);
+                                setCouponError('');
+                                setCouponSuccess('');
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleApplyCoupon();
+                              }}
+                              placeholder="Ej: DULCE3-X8K2"
+                              className="flex-1 bg-gray-50 border border-gray-200 text-ink text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-brand uppercase font-mono tracking-wider transition-colors"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleApplyCoupon}
+                              disabled={isValidatingCoupon || !couponInput.trim()}
+                              className="bg-brand text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center min-w-[75px]"
+                            >
+                              {isValidatingCoupon ? (
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                'Aplicar'
+                              )}
+                            </button>
+                          </div>
+                          {couponError && <p className="text-xs text-red-500 font-semibold mt-1.5">{couponError}</p>}
+                          {couponSuccess && <p className="text-xs text-emerald-600 font-semibold mt-1.5">{couponSuccess}</p>}
+                        </div>
                       ) : (
-                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 px-4 py-3 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            </div>
                             <div>
-                              <p className="text-xs font-bold text-emerald-700">Cupón aplicado: {appliedCoupon.code}</p>
-                              <p className="text-[10px] text-emerald-600 font-medium">-{fmt(discountAmount)} descuento</p>
+                              <p className="text-xs font-bold text-emerald-800">Cupón aplicado: <span className="font-mono">{appliedCoupon.code}</span> ({appliedCoupon.discount_percentage}% OFF)</p>
+                              <p className="text-[11px] text-emerald-600 font-semibold">Descuento: -{fmt(discountAmount)}</p>
                             </div>
                           </div>
-                          <button onClick={handleRemoveCoupon} className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline">Quitar</button>
+                          <button 
+                            type="button" 
+                            onClick={handleRemoveCoupon} 
+                            className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors ml-2 bg-white/80 hover:bg-white px-2 py-1 rounded-md border border-red-100"
+                          >
+                            Quitar
+                          </button>
                         </div>
                       )}
                     </div>
@@ -245,7 +324,7 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
                     </div>
                     {appliedCoupon && (
                       <div className="flex justify-between items-baseline mb-1 text-emerald-600">
-                        <span className="text-sm font-medium">Descuento</span>
+                        <span className="text-sm font-medium">Descuento ({appliedCoupon.discount_percentage}%)</span>
                         <span className="font-semibold text-lg">-{fmt(discountAmount)}</span>
                       </div>
                     )}
@@ -292,59 +371,6 @@ export default function CartDrawer({ isOpen, cart, onClose, onRemove, onQty, onC
               </>
             )}
           </motion.aside>
-
-          {/* Modal de Descuento */}
-          <AnimatePresence>
-            {isDiscountModalOpen && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm"
-              >
-                <motion.div
-                  initial={{ scale: 0.95, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.95, opacity: 0 }}
-                  className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
-                >
-                  <h3 className="font-display font-black text-xl text-ink mb-4">Ingresar código</h3>
-                  <input
-                    type="text"
-                    value={couponInput}
-                    onChange={e => { setCouponInput(e.target.value); setCouponError(''); }}
-                    className="w-full bg-gray-50 border border-gray-200 text-ink text-sm rounded-lg px-4 py-3 focus:outline-none focus:border-brand mb-2"
-                    placeholder="Ej: PROMO10"
-                    autoFocus
-                  />
-                  {couponError && <p className="text-xs text-red-500 font-semibold mb-4">{couponError}</p>}
-                  
-                  <div className="flex items-center gap-3 mt-6">
-                    <button
-                      onClick={() => {
-                        setIsDiscountModalOpen(false);
-                        setCouponError('');
-                      }}
-                      className="flex-1 bg-gray-100 text-ink-muted px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleApplyCoupon();
-                        if (validCoupons[couponInput.trim().toUpperCase()]) {
-                          setIsDiscountModalOpen(false);
-                        }
-                      }}
-                      className="flex-1 bg-brand text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-dark transition-colors shadow-md shadow-brand/20"
-                    >
-                      Aplicar
-                    </button>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </>
       )}
     </AnimatePresence>
